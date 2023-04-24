@@ -1,13 +1,14 @@
 # Project Workflow
 ### AI4ER MRes 2023: Fuel Classification
 
-## About
+# About
 XXX
 
-## Prerequisites
+# Prerequisites
 1. Create a JASMIN account. See [1].
 
-## Steps
+# Steps
+## BigEarthNet Data
 ### Step 1: Download the data from BigEarthNet
 Download the file "BigEarthNet-S2" from the following URL https://bigearth.net/ 
 The dataset is 66GB. 
@@ -51,7 +52,7 @@ But only 1000 files open in the group workspace
 open files                      (-n) 1024
 ```
 
-I decied to run the merge_files.py script in my home directory (/home/users/map205) since I can process more files at once here.
+I decided to run the merge_files.py script in my home directory (/home/users/map205) since I can process more files at once here.
 
 ```
 conda activate sea-ice-classification
@@ -66,6 +67,44 @@ scp -r "map205@login1.jasmin.ac.uk:/home/users/map205/mres/*" /Users/meghanplumr
 ```
 Note: I needed to add parantheses around the jasmin login path otherwise it failed with error zsh: no matches found: map205@login1.jasmin.ac.uk:/home/users/map205/mres/*
 
+<img width="975" alt="Screenshot 2023-04-24 at 15 14 38" src="https://user-images.githubusercontent.com/114443493/234087070-f1fb2929-ec37-4dde-95e4-c7230b337d62.png">
+
+There are 98 'global_merged' tif files covering Portugal (and wider). These each contain 1000 smaller raw .tif files, so altogether there are 98,000 files to review.
+
+### Step 6: Copy the 98,000 directories containing data covering Portugal to a new directory
+
+```
+cd /gws/nopw/j04/ai4er/users/map205/mres/
+mkdir portugal_data
+```
+
+Use the script portugal_data.py, which copies the directories to /gws/nopw/j04/ai4er/users/map205/mres/portugal_data
+
+The total volume of data is X GB.
+
+
+### Step 7: Identify the files the extend beyond Portugal and discard them
+
+TBC
+
+### Step 8: Move the .tif files of 10m x 10m resolution, and their corresponding .json file to a new directory
+
+Use the script 10m_portugal_data.py, which moves the files with 10 metre spatial resolution to /gws/nopw/j04/ai4er/users/map205/mres/10m_portugal_data
+
+```
+cd /gws/nopw/j04/ai4er/users/map205/mres/
+mkdir 10m_portugal_data
+```
+
+The total number of files is X
+The total volume is Y
+
+### Step 9: Copy the .tif and .json files to 
+
+
+------------------------------------------------------------------------------------------------------------------------
+
+## Sentinel-2 Data
 
 ## References
 
