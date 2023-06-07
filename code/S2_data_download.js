@@ -12,22 +12,23 @@
 
 // TO DO
 // 1. Add data for other months/seasons
-// 2. Increase CC %
-// 3. Modify cloud mask scheme
-// 4. Review export option 3 (or remove)
+// 2. Increase CC % - DONE
+// 3. Modify cloud mask scheme - DONE (to be reviewed)
+// 4. Review export option 3 (or remove) - DONE (removed)
+// 5. Also corrected data selection (S2_SR not S2) - DONE
 
 
 // 1. Select Sentinel 2A data (not 1C)
 // Specify bounding box, date range, and cloud cover %
-var s2 = ee.ImageCollection("COPERNICUS/S2")
+var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
   .filterBounds(ee.Geometry.Polygon([
     [-9.6863, 41.8802],
     [-9.6863, 36.8386],
     [-6.1897, 36.8386],
     [-6.1897, 41.8802]
   ]))
-  .filterDate("2018-01-29", "2018-01-31")
-  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 1));
+  .filterDate("2018-01-01", "2018-01-31")
+  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 50));
   
 // 2. Filter for Coimbra, Portugal
 // Load Portugal shapefile (which contains boundaries for each district in Portugal)
@@ -45,16 +46,31 @@ var bufferedGeometry = ee.Geometry(bufferedBounds);
 // Filter the Sentinel-2 data and specific bands for Coimbra
 var filteredCollection = s2
   .filterBounds(bufferedGeometry)
-  .select(['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12', 'QA60']);
+  .select(['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12', 'QA60', 'SCL']);
   
 // 3. Apply a cloud mask for images with cloud-covered and cloud-shadowed pixels
+
+//METHOD 1: Updated based on 
+// - https://github.com/fitoprincipe/geetools-code-editor/wiki/Cloud-Masks
+// - https://gis.stackexchange.com/questions/417799/removing-clouds-from-sentinel2-image-collection-in-google-earth-engine
+// - https://gis.stackexchange.com/questions/423823/mask-sentinel-2-image-using-scl-product-in-google-earth-engine
+// Import cloud_masks module
+//##var cld = require('users/fitoprincipe/geetools:cloud_masks');
+// Apply cloud and cloud shadow mask
+//##var maskedCollection = filteredCollection.map(function(image) {
+//##var masked = cld.sclMask(['cloud_low', 'cloud_medium', 'cloud_high', 'shadow'])(image);
+//##return masked;
+//##});
+
+// METHOD 2
+// Function to apply cloud and cloud shadow mask
 var applyCloudMask = function(image) {
   var qa = image.select('QA60');
   var cloudMask = qa.bitwiseAnd(1 << 10).eq(0); // Cloud mask bit
   var cloudShadowMask = qa.bitwiseAnd(1 << 11).eq(0); // Cloud shadow mask bit
   return image.updateMask(cloudMask).updateMask(cloudShadowMask);
 };
-// Apply masks
+// Apply cloud and cloud shadow mask to the collection
 var maskedCollection = filteredCollection.map(applyCloudMask);
 
 // 4. Reproject S2 data to CRS EPSG:32629
@@ -157,63 +173,6 @@ imageList.evaluate(function(ids) {
   });
 });
 
-
-///////////////////////////////////////////////////////////////////////////
-// REVIEW LATER - COULD NOT GET WORKING //
-
-// DOWNLOAD OPTION 3: Exporting bands and indices
-// XX GB
-var exportBands3 = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'];
-// Calculate NDVI and NDBI
-// See https://developers.google.com/earth-engine/tutorials/tutorial_api_06 (bands 8 and 4)
-// See https://www.lifeingis.com/computing-ndbi-in-google-earth-engine/ (bands 11 and 8)
-// Note: .toFloat() ensures that these indices have data type Float32 (same as S2 bands)
-
-// DOWNLOAD OPTION 3: Exporting bands AND indices
-var exportBands3 = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'];
-
-// Convert bands to float (so that S2 bands and indices are in the same format)
-var convertToFloat = function(image) {
-  var floatBands = image.select(exportBands3).toFloat();
-  return floatBands.copyProperties(image, image.propertyNames());
-};
-
-// Calculate NDVI and NDBI indices
-var addIndices = function(image) {
-  var ndvi = image.normalizedDifference(['B8', 'B4']).rename('NDVI');
-  var ndbi = image.normalizedDifference(['B11', 'B8']).rename('NDBI');
-  return image.addBands([ndvi, ndbi]);
-};
-
-// Crop, convert to float, calculate indices
-var croppedCollection3 = maskedCollection
-  .select(exportBands3)
-  .map(convertToFloat)
-  .map(addIndices)
-  .map(function(image) {
-    return image.clip(bufferedGeometry);
-  });
-
-// Merge images
-var mergedImage3 = croppedCollection3.mean().toFloat()
-  .reproject({
-    crs: desiredCRS,
-    scale: 10
-  });
-
-// Export option for single merged file
-Export.image.toDrive({
-  image: mergedImage3,
-  description: 'Last_Try',
-  scale: 10,
-  crs: desiredCRS,
-  region: bufferedGeometry,
-  folder: 'GEE_Data',
-  fileFormat: 'GeoTIFF'
-});
-
-
-
 ///////////////////////////////////////////////////////////////////////////
 
 /// VISUALISE DATA ON THE GEE MAP ///
@@ -243,12 +202,3 @@ var bandNames = cloudImage.bandNames();
 var bandDataTypes = cloudImage.bandTypes();
 print("Masked Band Names:", bandNames);
 print("Masked Band Data Types:", bandDataTypes);
-
-// Checking computation of indices (export option 3)
-var indicesImage = croppedCollection3.median();
-// Get band names and data type(s)
-var indicesBandNames = indicesImage.bandNames();
-var indicesBandDataTypes = indicesImage.bandTypes();
-print("Indices Band Names:", indicesBandNames);
-print("Indices Band Data Types:", indicesBandDataTypes);
-
