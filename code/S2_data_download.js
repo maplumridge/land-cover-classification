@@ -11,7 +11,7 @@
 //    b) Export satellite data with 10 bands (2, 3, 4, 5, 6, 7, 8, 8a, 11 & 12) at 10 metre resoltion
 
 // TO DO
-// 1. Add data for other months/seasons
+// 1. Add data for other months/seasons - DONE
 // 2. Increase CC % - DONE
 // 3. Modify cloud mask scheme - DONE (to be reviewed)
 // 4. Review export option 3 (or remove) - DONE (removed)
@@ -27,8 +27,11 @@ var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
     [-6.1897, 36.8386],
     [-6.1897, 41.8802]
   ]))
-  .filterDate("2018-01-01", "2018-03-31")
-  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 50));
+//  .filterDate("2018-01-01", "2018-03-31")
+//  .filterDate("2018-04-01", "2018-06-30")
+//  .filterDate("2018-07-01", "2018-09-30")
+  .filterDate("2018-10-01", "2018-12-31")
+  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 5));
   
 // 2. Filter for Coimbra, Portugal
 // Load Portugal shapefile (which contains boundaries for each district in Portugal)
@@ -78,7 +81,7 @@ var desiredCRS = 'EPSG:32629';
 
 // 5 & 6: Merge and export data
 // DOWNLOAD OPTION 1: Exporting bands 2, 3, 4, and 8 only
-// Volume: 644 MB
+// Average Volume: 647.5 MB
 var exportBands1 = ['B2', 'B3', 'B4', 'B8'];
 // Crop the data with selected bands
 var croppedCollection1 = maskedCollection.select(exportBands1).map(function(image) {
@@ -88,7 +91,10 @@ var croppedCollection1 = maskedCollection.select(exportBands1).map(function(imag
 Export.image.toDrive({
   image: croppedCollection1.median(),
   scale: 10,
-  description: 'Winter_4bands',
+//  description: 'Winter_4bands',
+//  description: 'Spring_4bands',
+//  description: 'Summer_4bands',
+  description: 'Autumn_4bands',
   region: bufferedGeometry,
   crs: desiredCRS,
   folder: 'GEE_Data',
@@ -101,7 +107,7 @@ print("Sentinel-2 Image List:", imageList);
 /////////////////////////////////////////////////////////////////////////////////
 
 // DOWNLOAD OPTION 2: Exporting all bands excluding 1, 9 & 10 (atmopsheric bands)
-// Volume: 1.14 GB
+// Average Volume: 1.2 GB
 var exportBands2 = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'];
 // Crop the data with selected bands
 var croppedCollection2 = maskedCollection.select(exportBands2).map(function(image) {
@@ -164,7 +170,10 @@ imageList.evaluate(function(ids) {
   // Export option for single file
   Export.image.toDrive({
     image: mergedImage,
-    description: 'Winter_10bands',
+//    description: 'Winter_10bands',
+//    description: 'Spring_10bands',
+//    description: 'Summer_10bands',
+    description: 'Autumn_10bands',
     scale: exportConfig.scale,
     crs: exportConfig.crs,
     region: exportConfig.region,
