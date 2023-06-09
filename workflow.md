@@ -39,7 +39,7 @@ Select the 'Tasks' tab --> Select RUN for 'January_4bands' and 'January_10bands'
 
 The data will be exported to your Google Drive account. 
 
-<b>Note: </b> Free Google Drive accounts are limited to 15 GB of storage.
+<b>Note: </b> The total volume of data is 7.3 GB. Free Google Drive accounts are limited to 15 GB of storage.
 
 ### Step 5: Download data & copy to JASMIN HPC
 Once you have downloaded the data from Google Drive to your local storage, run the following command:
@@ -53,7 +53,7 @@ In my case, the code used was:
 scp -r /Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/GEE map205@login1.jasmin.ac.uk:/home/users/map205/MRes_Data/
 ```
 
-<b>Note: </b> The files are transferred to the home directory on the JASMIN login node and synchronised to the compute nodes. Home directories on JASMIN have a 100 GB storage limit. 
+<b>Note: </b> This takes about 15 minutes. The files are transferred to the home directory on the JASMIN login node and synchronised to the compute nodes. Home directories on JASMIN have a 100 GB storage limit. 
 
 ------------------------------------------------------------------------------------------------------------------------
 
