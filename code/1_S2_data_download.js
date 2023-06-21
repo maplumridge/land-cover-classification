@@ -1,21 +1,14 @@
 // AI4ER MRes
 // Code to export L2A Sentinel-2 satellite data
 // Steps:
-// 1. Selects Sentinel-2 data from January, February and March 2018 (winter)
-// 2. Filter for Coimbra, Portugal and images with less than 50% cloud cover
+// 1. Selects Sentinel-2 data for each season
+// 2. Filter for Coimbra, Portugal
 // 3. Applies a cloud mask to any individual satellite images that contain cloud cover
 // 4. Reprojects the data to coordinate reference system EPSG:32629
 // 5. Merges the data for individual dates together to create a seasonal average
 // 6. Creates two export options:
 //    a) Export satellite data with 4 bands (2, 3, 4 & 8) at 10 metre resolution
 //    b) Export satellite data with 10 bands (2, 3, 4, 5, 6, 7, 8, 8a, 11 & 12) at 10 metre resoltion
-
-// TO DO
-// 1. Add data for other months/seasons - DONE
-// 2. Increase CC % - DONE
-// 3. Modify cloud mask scheme - DONE (to be reviewed)
-// 4. Review export option 3 (or remove) - DONE (removed)
-// 5. Also corrected data selection (S2_SR not S2) - DONE
 
 
 // 1. Select Sentinel 2A data (not 1C)
@@ -31,7 +24,7 @@ var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
 //  .filterDate("2018-04-01", "2018-06-30")
 //  .filterDate("2018-07-01", "2018-09-30")
   .filterDate("2018-10-01", "2018-12-31")
-  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 5));
+//  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 10));
   
 // 2. Filter for Coimbra, Portugal
 // Load Portugal shapefile (which contains boundaries for each district in Portugal)
@@ -58,12 +51,12 @@ var filteredCollection = s2
 // - https://gis.stackexchange.com/questions/417799/removing-clouds-from-sentinel2-image-collection-in-google-earth-engine
 // - https://gis.stackexchange.com/questions/423823/mask-sentinel-2-image-using-scl-product-in-google-earth-engine
 // Import cloud_masks module
-//##var cld = require('users/fitoprincipe/geetools:cloud_masks');
+////var cld = require('users/fitoprincipe/geetools:cloud_masks');
 // Apply cloud and cloud shadow mask
-//##var maskedCollection = filteredCollection.map(function(image) {
-//##var masked = cld.sclMask(['cloud_low', 'cloud_medium', 'cloud_high', 'shadow'])(image);
-//##return masked;
-//##});
+////var maskedCollection = filteredCollection.map(function(image) {
+////var masked = cld.sclMask(['cloud_low', 'cloud_medium', 'cloud_high', 'shadow'])(image);
+////return masked;
+////});
 
 // METHOD 2
 // Function to apply cloud and cloud shadow mask
@@ -89,7 +82,7 @@ var croppedCollection1 = maskedCollection.select(exportBands1).map(function(imag
 });
 // Export TIFF file to my Google drive
 Export.image.toDrive({
-  image: croppedCollection1.median(),
+  image: croppedCollection1.mean(),
   scale: 10,
 //  description: 'Winter_4bands',
 //  description: 'Spring_4bands',
@@ -185,11 +178,9 @@ imageList.evaluate(function(ids) {
 ///////////////////////////////////////////////////////////////////////////
 
 /// VISUALISE DATA ON THE GEE MAP ///
-
 var visualizationParams = { bands: ['B4', 'B3', 'B2'], min: 0, max: 3000 };
-Map.addLayer(croppedCollection1.median(), visualizationParams, "Sentinel-2");
+Map.addLayer(croppedCollection1.mean(), visualizationParams, "Sentinel-2");
 Map.centerObject(bufferedGeometry, 11);
-
 
 ///////////////////////////////////////////////////////////////////////////
 
