@@ -1,7 +1,19 @@
 """ 
+This finally works!!!! To be cleaned up...
+
 Updates since last push:
 - Enforce command-line args
 - Added all class labels
+- Rearrange CSV generation (order was incorrect so file was not being saved)
+- Also added satellite data to CSV file as well, for loading in the next model
+- Also added indexing and addition of ground truth level 2 to CSV for the y_pred rows,
+so that I can just load the CSV by the next model and it has all the info needed
+(the rows which were predicted from this model, with their corresponding 
+predicted value, satellite data and L2 class to train the next model)
+- Note: I have to generate two versions of X_test, one with the L2 data included
+as an additional column (X_test_CSV), so I can save this to CSV with the predictions. 
+Another, X_test for use in the model (with L2_groundtruth column removed).
+- For every predicition, I have the satellite data and L2 class, ready for the next model.
 
 To do:
 - Add file name options for command-line args
@@ -56,7 +68,8 @@ wandb.init(project='land-cover-classification', entity='maplumridge')
 ## Set up parsing of command line arguments 
 parser = argparse.ArgumentParser(description='Land Cover Classification')
 parser.add_argument('--satellite_files', nargs='*', help='List of satellite data files to generate time series stack (4 bands, 10 bands, 12 bands)', required=True)
-parser.add_argument('--groundtruth_file', help='Ground truth data file (level 1, 2 or 3)', required=True)
+parser.add_argument('--groundtruth_file', help='Ground truth data file (level 1 or 2)', required=True)
+parser.add_argument('--additional_groundtruth_file', help='Lower level ground truth file for level 2 or 3 classification', required=True)
 parser.add_argument('--pixels_per_class', type=int, help='Number of pixels per class to use for model training', required=True)
 parser.add_argument('--label_type', choices=['L1', 'L2', 'L3'], default='L1', help='Labels to use for confusion matrix (level 1, 2 or 3 classes)', required=True)
 parser.add_argument('--model_output', help='Name of output pkl file which model will be saved to', required=True)
@@ -75,8 +88,10 @@ print(satellite_files)
 ## Load data
 # Load seasonal satellite data with 4, 10 or 12 bands. This will load 4 files for the year 2018.
 satellite_files = [os.path.join(input_dir, file) for file in args.satellite_files]
-# Load CORINE ground truth data with level 1, 2 or 3 classes
+# Load CORINE ground truth data with level 1 or 2 classes
 groundtruth_file = os.path.join(input_dir, args.groundtruth_file)
+# Load additional CORINE ground truth data with 2 or 3 classes
+additional_groundtruth_file = os.path.join(input_dir, args.additional_groundtruth_file)
 
 
 ### SATELLITE DATA ###
@@ -114,12 +129,31 @@ groundtruth_data_flat = groundtruth_data.flatten()
 
 
 ### CREATE DATA FRAME ###
-# Create a DataFrame combining data and ground truth data
+## Create a DataFrame combining data and ground truth data
+#df = pd.DataFrame(satellite_data_2d, columns=['band'+str(i) for i in range(1, bands+1)])
+#df['groundtruth'] = groundtruth_data_flat
+## Remove rows with NaN values
+#df.dropna(inplace=True)
+##print(df.head(10))
+
+
+### ADDITIONAL GROUND TRUTH DATA ###
+# Open additional ground truth data with gdal
+L2_groundtruth_image = gdal.Open(additional_groundtruth_file)
+# Read additional ground truth data as array and reshape/size to match satellite data
+L2_groundtruth_data = L2_groundtruth_image.GetRasterBand(1).ReadAsArray()
+L2_groundtruth_data_flat = L2_groundtruth_data.flatten()
+
+
+### CREATE DATA FRAME ###
+# Create a DataFrame combining data, ground truth data, and L2 ground truth data
 df = pd.DataFrame(satellite_data_2d, columns=['band'+str(i) for i in range(1, bands+1)])
 df['groundtruth'] = groundtruth_data_flat
-# Remove rows with NaN values
+df['L2_groundtruth'] = L2_groundtruth_data_flat
+print("Data frame before NaN removal (L1, L2 and satellite data)", df)
+## Remove rows with NaN values
 df.dropna(inplace=True)
-#print(df.head(10))
+print("Data frame post-NaN removal (L1, L2 and satellite data):", df)
 
 
 ### ORGANISE DATA FOR MODELLING ###
@@ -132,7 +166,7 @@ df.dropna(inplace=True)
 # Note: need to maintain indices for shuffling operation
 shuffled_df = df.sample(frac=1, random_state=42)
 # This works and shows that the index values are maintained and the pixels are shuffled
-print("Shuffled total DF:", shuffled_df.head(10)) 
+print("Shuffled data frame:", shuffled_df) 
 
 # I want to use the same number of pixels for each class (oversampling/undersampling), to create a balanced model
 min_pixels_per_class = args.pixels_per_class
@@ -161,6 +195,9 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 ## CHECKS ##
 # Print shuffled training and testing data to ensure randomness is maintained...
+# Should also maintain ground truth level 2 file in this
+# as we want to keep this indexed correctly and aligned with the satellite data
+# and predictions for the same pixels.
 # Train
 print("Shuffled Training Data:")
 print("Satellite training data:", X_train)
@@ -177,6 +214,17 @@ print("Number of pixels per class (Training Data):")
 print(train_pixels_per_class)
 print("Number of pixels per class (Testing Data):")
 print(test_pixels_per_class)
+
+# Record the indices of the testing/prediction dataset
+original_indices_test = X_test.index
+print("Test indices:", X_test.index)
+
+# Remove the 'L2_groundtruth' column from X_train, maintain for X_test
+X_train.drop('L2_groundtruth', axis=1, inplace=True)
+# Create a copy of X_test (with L2_groundtruth, for use in CSV file)
+X_test_CSV = X_test.copy()
+X_test.drop('L2_groundtruth', axis=1, inplace=True)
+
 
 ## MODELING ##
 ## Specify model configuration
@@ -209,6 +257,7 @@ best_model = grid_search.best_estimator_
 best_params = grid_search.best_params_
 # Make predictions on test data using the best model
 y_pred = best_model.predict(X_test)
+
 
 ### EVALUATION ###
 # Log results to W&B
@@ -316,12 +365,50 @@ model_output = args.model_output
 model_output_file = os.path.join(output_dir, model_output)
 joblib.dump(best_model, model_output_file)
 
+## Create data frame of predictions
+#predictions_df = pd.DataFrame({'y_pred': y_pred})
+## Save predicitions to CSV file
+model_predictions = args.model_predictions
+#model_predictions_file = os.path.join(output_dir, model_predictions)
+## Do I need to specify 'model_predictions_file' below instead of 'model_predictions'?
+#predictions_df.to_csv(model_predictions, index=False)
+
+
+# Shouldn't need this first command now, since X_test now contains the L2 ground truth data
+
+## Retrieve L2_groundtruth values corresponding to the original indices of the training dataset
+#L2_groundtruth_test_rows = X_test.loc[original_indices_test, 'L2_groundtruth']
+
+print("X_test before reset index:", X_test_CSV)
+## This assumes that the order of y_pred is the same as the order of X_test
 # Create data frame of predictions
 predictions_df = pd.DataFrame({'y_pred': y_pred})
-# Save predicitions to CSV file
-model_predictions = args.model_predictions
+# Reset the index of X_test (otherwise concatination does not work)
+X_test_CSV.reset_index(drop=True, inplace=True)
+# Create DF of X_test, y_pred, and corresponding L2_groundtruth values
+combined_df = pd.concat([X_test_CSV, predictions_df], axis=1)
+#combined_df['L2_groundtruth'] = L2_groundtruth_test.values
+## Add the original indices as a separate column in the DataFrame
+#combined_df['original_index'] = shuffled_df.index[X_test.index]
+
+## To check, 
+print("CHECK INDICES MATCH")
+print("X test (satellite data) with L2 ground truth data:", X_test_CSV)
+print("Model predictions:", predictions_df)
+print("Output CSV data:", combined_df)
+
+## Drop the 'original_index' column
+#combined_df.drop('original_index', axis=1, inplace=True)
+## Save the combined DataFrame to a CSV file
 model_predictions_file = os.path.join(output_dir, model_predictions)
-# Do I need to specify 'model_predictions_file' below instead of 'model_predictions'?
-predictions_df.to_csv(model_predictions, index=False)
+# Export the combined DataFrame to a CSV file
+combined_df.to_csv(model_predictions_file, index=False)
+
+## Create a DataFrame of predictions and satellite data
+#predictions_df = pd.DataFrame({'y_pred': y_pred})
+#combined_df = pd.concat([X_test, predictions_df], axis=1)
+## Save the combined DataFrame to a CSV file
+#model_predictions_file = os.path.join(output_dir, model_predictions)
+#combined_df.to_csv(model_predictions_file, index=False)
 
 wandb.finish()
