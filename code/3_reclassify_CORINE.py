@@ -12,7 +12,8 @@ import rasterio
 import numpy as np
 
 # Open CORINE ground truth data (already cropped and reprojected)
-with rasterio.open('/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/CORINE_32629_10m_Cropped.tif') as groundtruth:
+#with rasterio.open('/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/CORINE_32629_10m_Cropped.tif') as groundtruth:
+with rasterio.open('/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Braga_CORINE_Cropped_L3.tif') as groundtruth:
     # Read as numpy array
     array = groundtruth.read(1)
     ## Map target classes (level 1 or level 2) to the original input classes (level 3)
@@ -69,7 +70,9 @@ with rasterio.open('/Users/meghanplumridge/Library/CloudStorage/OneDrive-Univers
     metadata.update(count=1, dtype=rasterio.uint8)
     ## Create & save a new .tif ground truth file containing the new classes for each pixel
     #output_file = '/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/Braga_L1_CORINE_32629_10m_Cropped_test.tif'
-    output_file = '/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/Hybrid_Classes_CORINE_32629_10m_Cropped.tif'
+    #output_file = '/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/Hybrid_Classes_CORINE_32629_10m_Cropped.tif'
+    output_file = '/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/Braga_Hybrid_Classes_CORINE_32629_10m_Cropped.tif'
+
     with rasterio.open(output_file, 'w', **metadata) as dst:
         dst.write(modified_array, 1)
     

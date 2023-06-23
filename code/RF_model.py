@@ -1,15 +1,13 @@
-"""
-Project:        AI4ER MRes
-Code:           Random Forest model for time-series data
-Useage:         TBC
-Order/workflow: After RF_read_data.py...
-Prerequisites:  TBC
-Time to run:    X hours, X minutes...
-Improvements to do: 
-- Add command-line arguments to use just one script for all model runs
-- Add more evaluation metrics
-- Save the model to then load and use on unseen data
-- Set up heirarchical classification?
+""" 
+Updates since last push:
+- Enforce command-line args
+- Added all class labels
+
+To do:
+- Add file name options for command-line args
+
+Note:
+- This is the flat model... still need to configure hierarchical model properly...
 """
 
 # Let's test this with 100 pixels per class and a smaller grid search...
@@ -17,7 +15,7 @@ Improvements to do:
 # Maybe make more modular with functions...
 # Tidy up
 
-# Updates:
+# Old updates:
 # Added shuffle (with index maintained, to help track pixels)
 # - Printing data frame at various stages to confirm this is working
 # Added training and testing metrics
@@ -57,12 +55,12 @@ wandb.init(project='land-cover-classification', entity='maplumridge')
 
 ## Set up parsing of command line arguments 
 parser = argparse.ArgumentParser(description='Land Cover Classification')
-parser.add_argument('--satellite_files', nargs='*', help='List of satellite data files to generate time series stack (4 bands, 10 bands, 12 bands)')
-parser.add_argument('--groundtruth_file', help='Ground truth data file (level 1, 2 or 3)')
-parser.add_argument('--pixels_per_class', type=int, help='Number of pixels per class to use for model training')
-parser.add_argument('--label_type', choices=['L1', 'L2', 'L3'], default='L1', help='Labels to use for confusion matrix (level 1, 2 or 3 classes)')
-parser.add_argument('--model_output', help='Name of output pkl file which model will be saved to')
-parser.add_argument('--model_predictions', help='Name of output CSV file which model predictions will be saved to')
+parser.add_argument('--satellite_files', nargs='*', help='List of satellite data files to generate time series stack (4 bands, 10 bands, 12 bands)', required=True)
+parser.add_argument('--groundtruth_file', help='Ground truth data file (level 1, 2 or 3)', required=True)
+parser.add_argument('--pixels_per_class', type=int, help='Number of pixels per class to use for model training', required=True)
+parser.add_argument('--label_type', choices=['L1', 'L2', 'L3'], default='L1', help='Labels to use for confusion matrix (level 1, 2 or 3 classes)', required=True)
+parser.add_argument('--model_output', help='Name of output pkl file which model will be saved to', required=True)
+parser.add_argument('--model_predictions', help='Name of output CSV file which model predictions will be saved to', required=True)
 args = parser.parse_args()
 
 # Location of input satellite files and ground truth file
@@ -184,18 +182,21 @@ print(test_pixels_per_class)
 ## Specify model configuration
 # First, define the parameter grid for 5-fold grid-search cross-validation
 # These are the specific parameter values that I want to test
-"""
+
 param_grid = {
     'n_estimators': [100, 200, 300, 500],
     'max_depth': [5, 10, 20, 30],
     'min_samples_leaf': [1, 2, 3, 5]
 }
 """
+For practicing...
+
 param_grid = {
     'n_estimators': [100, 200],
     'max_depth': [5, 10],
     'min_samples_leaf': [1, 2]
 }
+"""
 
 # Create RF model
 rf = RandomForestClassifier(random_state=42, n_jobs=-1)
@@ -260,8 +261,18 @@ wandb.log({"Test F1 Score": f1_test})
 # https://scikit-learn.org/stable/modules/generated/sklearn.metrics.confusion_matrix.html 
 # Labels are selected as command-line arg
 L1_classes = ['Artificial Surfaces', 'Agricultural areas', 'Forest and seminatural areas', 'Wetlands', 'Water bodies']
-L2_classes = ['Test']
-L3_classes = ['Test 2']
+
+L2_classes = ['Urban fabric', 'Industrial, comercial and transport units', 'Mine, dump and construction sites', 
+'Artificial, non-agricultural vegetated areas','Arable land', 'Permanent crops', 'Pastures', 'Heterogeneous agricultural areas', 
+'Forest', 'Shrub and/or herbaceous vegetation associations', 'Open spaces with little or no vegetation', 'Inland wetlands', 
+'Coastal wetlands', 'Inland waters', 'Marine waters']
+
+L3_classes = ['Continuous urban fabric', 'Discontinuous urban fabric', 'Industrial, comercial and transport units', 
+'Mine, dump and construction sites', 'Artificial, non-agricultural vegetated areas','Arable land', 'Permanent crops', 
+'Pastures', 'Heterogeneous agricultural areas', 'Broad-leaved forest', 'Coniferous forest', 'Mixed forest', 
+'Natural grassland', 'Moors and heathland', 'Sclerophyllous vegetation', 'Transitional woodland/shrub', 
+'Open spaces with little or no vegetation', 'Inland wetlands', 'Coastal wetlands', 'Inland waters', 'Marine waters']
+
 label_type = args.label_type
 
 if label_type == 'L1':
@@ -295,8 +306,6 @@ wandb.log({"Training Precision": precision_train})
 wandb.log({"Training Recall": recall_train})
 wandb.log({"Training F1 Score": f1_train})
 
-wandb.finish()
-
 ####
 
 ## SAVE MODEL & PREDICITIONS ##
@@ -312,6 +321,7 @@ predictions_df = pd.DataFrame({'y_pred': y_pred})
 # Save predicitions to CSV file
 model_predictions = args.model_predictions
 model_predictions_file = os.path.join(output_dir, model_predictions)
+# Do I need to specify 'model_predictions_file' below instead of 'model_predictions'?
 predictions_df.to_csv(model_predictions, index=False)
 
-
+wandb.finish()
