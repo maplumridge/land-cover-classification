@@ -1,4 +1,11 @@
 """
+Latest updates:
+- Output .tif file
+- Reset index of data frame before combining with model predictions,
+otherwise the concatenation fails and puts the predictions below the data frame rows.
+- Fixed CSV generation (was adding rows with NaN values)
+- Working on fixing .tif file generation (was just in a straight line)
+
 To do: 
 - save predicitions, satellite data and L2 ground truth for same rows to CSV
 - this will feed into hierarchical model
@@ -10,7 +17,7 @@ To do:
 """
 
 """
-New updates
+Previous updates
 - Added precision, recall and F1 metrics
 - Added logging of accuracy to W&B
 - Added all class labels
@@ -157,6 +164,7 @@ print("Data frame post-NaN removal (L1, L2 and satellite data):", df_test)
 remaining_indices = df_test.index
 # Remove corresponding rows from test_groundtruth_data_flat
 test_groundtruth_data_flat_filtered = test_groundtruth_data_flat[remaining_indices]
+print("Groundtruth data with NaN rows removed:", test_groundtruth_data_flat_filtered.shape)
 
 # Create a copy of X_test (with L2_groundtruth, for use in CSV file)
 df_test_CSV = df_test.copy()
@@ -167,13 +175,16 @@ df_test_CSV.drop('groundtruth', axis=1, inplace=True)
 df_test.drop('L2_groundtruth', axis=1, inplace=True)
 df_test.drop('groundtruth', axis=1, inplace=True)
 
-## No shuffling
+## DO NOT SHUFFLE 
+# For visualising predicitions after, need to have them in the right location
+
 ## Use all pixels
 
 ### RUN THE MODEL ###
 # Make predictions on satellite data using loaded model
 y_pred_test = input_model.predict(df_test)
 
+print("Predictions:", y_pred_test)
 
 ### EVALUATION ###
 # Log results to W&B
@@ -247,12 +258,51 @@ wandb.log({"Test weighted F1 ": WFS})
 # rows. Note, NaN rows are excluded.
 print("CHECKING df_test (should have satellite data and L2 data (not L1)):", df_test_CSV)
 predictions_df = pd.DataFrame({'y_pred': y_pred_test})
+# Reset the index of X_test (otherwise concatination does not work, since y_pred has new indices).
+df_test_CSV.reset_index(drop=True, inplace=True)
 combined_df = pd.concat([df_test_CSV, predictions_df], axis=1)
 ## To check
 print("Output CSV data:", combined_df)
+
+ ### output CSV contains NaN values!!!!
+ ### but has a y_pred value...?
+ ## Updated to reset index of data frame (see above)
+
+""" 46451280         NaN         NaN         NaN          NaN         NaN         NaN  ...         NaN         NaN         NaN          NaN             NaN     5.0
+46451281         NaN         NaN         NaN          NaN         NaN         NaN  ...         NaN         NaN         NaN          NaN             NaN     5.0
+46451282         NaN         NaN         NaN          NaN         NaN         NaN  ...         NaN         NaN         NaN          NaN             NaN     5.0
+46451499         NaN         NaN         NaN          NaN         NaN         NaN  ...         NaN         NaN         NaN          NaN             NaN     5.0
+46451500         NaN         NaN         NaN          NaN         NaN         NaN  ...         NaN         NaN         NaN          NaN             NaN     5.0
+ """
+
 # Save CSV to output_dir
 model_predictions = args.model_predictions
 model_predictions_file = os.path.join(output_dir, model_predictions)
 combined_df.to_csv(model_predictions_file, index=False)
+
+### SAVE TO .TIF FILE ###
+
+import rasterio
+from rasterio.transform import Affine
+# Define the output file path and other parameters
+output_predictions_tif = '/home/users/map205/MRes_Data/Braga_L1_4bands_predictions.tif'
+crs = 'EPSG:32629'  # CRS of satellite data and ground truth data
+resolution = 10 
+# Bounding box of Braga (satellite data and ground truth data)
+left = 515688.4015
+bottom = 4574067.901
+right = 599648.4015
+top = 4630657.901
+# Calculate width and height from extent and resolution
+width = int((right - left) / resolution)
+height = int((top - bottom) / resolution)
+# Load values from 'y_pred_test' array
+data = y_pred_test
+# Transform (georeferencing information)
+transform = Affine.translation(left, top) * Affine.scale(resolution, -resolution)
+# Create raster
+with rasterio.open(output_predictions_tif, 'w', driver='GTiff', height=height, width=width, count=1, dtype=data.dtype,
+                   crs=crs, transform=transform) as dst:
+    dst.write(data.reshape(1, height, width))
 
 wandb.finish()
