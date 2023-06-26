@@ -10,7 +10,6 @@
 //    a) Export satellite data with 4 bands (2, 3, 4 & 8) at 10 metre resolution
 //    b) Export satellite data with 10 bands (2, 3, 4, 5, 6, 7, 8, 8a, 11 & 12) at 10 metre resoltion
 
-
 // 1. Select Sentinel 2A data (not 1C)
 // Specify bounding box, date range, and cloud cover %
 var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
@@ -20,11 +19,10 @@ var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
     [-6.1897, 36.8386],
     [-6.1897, 41.8802]
   ]))
-//  .filterDate("2018-01-01", "2018-03-31")
+  .filterDate("2018-01-01", "2018-03-31")
 //  .filterDate("2018-04-01", "2018-06-30")
 //  .filterDate("2018-07-01", "2018-09-30")
-  .filterDate("2018-10-01", "2018-12-31")
-//  .filter(ee.Filter.lt("CLOUDY_PIXEL_PERCENTAGE", 10));
+//  .filterDate("2018-10-01", "2018-12-31")
   
 // 2. Filter for Coimbra, Portugal
 // Load Portugal shapefile (which contains boundaries for each district in Portugal)
@@ -44,50 +42,55 @@ var filteredCollection = s2
   .filterBounds(bufferedGeometry)
   .select(['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12', 'QA60', 'SCL']);
   
-// 3. Apply a cloud mask for images with cloud-covered and cloud-shadowed pixels
+/// CLOUD MASKING ///
 
-//METHOD 1: Updated based on 
+// 3. Apply a cloud mask for images with cloud-covered and cloud-shadowed pixels
+// Updated to use 'better' SCL method:
+// - See https://www.mdpi.com/2072-4292/13/4/816
 // - https://github.com/fitoprincipe/geetools-code-editor/wiki/Cloud-Masks
 // - https://gis.stackexchange.com/questions/417799/removing-clouds-from-sentinel2-image-collection-in-google-earth-engine
 // - https://gis.stackexchange.com/questions/423823/mask-sentinel-2-image-using-scl-product-in-google-earth-engine
-// Import cloud_masks module
-////var cld = require('users/fitoprincipe/geetools:cloud_masks');
-// Apply cloud and cloud shadow mask
-////var maskedCollection = filteredCollection.map(function(image) {
-////var masked = cld.sclMask(['cloud_low', 'cloud_medium', 'cloud_high', 'shadow'])(image);
-////return masked;
-////});
+// Extract band SCL
+function maskS2clouds(image) {
+  var scl = image.select('SCL');
+  // Values 3, 8, 9 and 10 represent cloud shadows and different types of clouds
+  var mask = scl.neq(3).and(scl.neq(8)).and(scl.neq(9)).and(scl.neq(10));
+  return image.updateMask(mask);
+}
+// Apply mask to image collection
+var s2CloudMasked = filteredCollection.map(maskS2clouds);
 
-// METHOD 2
-// Function to apply cloud and cloud shadow mask
-var applyCloudMask = function(image) {
-  var qa = image.select('QA60');
-  var cloudMask = qa.bitwiseAnd(1 << 10).eq(0); // Cloud mask bit
-  var cloudShadowMask = qa.bitwiseAnd(1 << 11).eq(0); // Cloud shadow mask bit
-  return image.updateMask(cloudMask).updateMask(cloudShadowMask);
-};
-// Apply cloud and cloud shadow mask to the collection
-var maskedCollection = filteredCollection.map(applyCloudMask);
+// Create a MEDIAN composited image
+// Median is more robust to noise and outliers
+// Changing this to .mean shows worse performance
+var medianImage = s2CloudMasked.median().clip(coimbraGeometry);
+
+// Visualise the median composited image
+Map.centerObject(coimbraGeometry, 10);
+Map.addLayer(medianImage, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, 'Median RGB');
+
+
+//// EXPORT SEASONAL SATELLITE DATA ////
 
 // 4. Reproject S2 data to CRS EPSG:32629
 var desiredCRS = 'EPSG:32629';
 
 // 5 & 6: Merge and export data
-// DOWNLOAD OPTION 1: Exporting bands 2, 3, 4, and 8 only
+// DOWNLOAD OPTION 1: Exporting 10m bands 2, 3, 4, and 8 only
 // Average Volume: 647.5 MB
 var exportBands1 = ['B2', 'B3', 'B4', 'B8'];
 // Crop the data with selected bands
-var croppedCollection1 = maskedCollection.select(exportBands1).map(function(image) {
+var croppedCollection1 = s2CloudMasked.select(exportBands1).map(function(image) {
   return image.clip(bufferedGeometry);
 });
-// Export TIFF file to my Google drive
+// Export TIFF file to my Google drive (20GB limit)
 Export.image.toDrive({
-  image: croppedCollection1.mean(),
+  image: croppedCollection1.median(),
   scale: 10,
 //  description: 'Winter_4bands',
 //  description: 'Spring_4bands',
 //  description: 'Summer_4bands',
-  description: 'Autumn_4bands',
+  description: 'Autumn_bands',
   region: bufferedGeometry,
   crs: desiredCRS,
   folder: 'GEE_Data',
@@ -99,88 +102,26 @@ print("Sentinel-2 Image List:", imageList);
 
 /////////////////////////////////////////////////////////////////////////////////
 
-// DOWNLOAD OPTION 2: Exporting all bands excluding 1, 9 & 10 (atmopsheric bands)
+// DOWNLOAD OPTION 2: Exporting all 20m bands, excluding 1, 9 & 10 (60m atmopsheric bands)
 // Average Volume: 1.2 GB
 var exportBands2 = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'];
 // Crop the data with selected bands
-var croppedCollection2 = maskedCollection.select(exportBands2).map(function(image) {
+var croppedCollection2 = s2CloudMasked.select(exportBands2).map(function(image) {
   return image.clip(bufferedGeometry);
 });
-// Export TIFF file to my Google drive
-// Specify croppedCollection2 (not 1 from the previous export)
-var imageCollection = croppedCollection2;
-
-// Due to larger dataset size, export the data in batches and merge the data back together
-// Batch export parameters
-var exportConfig = {
-  descriptionPrefix: 'Batch_Export_',
+// Export TIFF file to my Google drive (20GB limit)
+Export.image.toDrive({
+  image: croppedCollection1.median(),
   scale: 10,
-  crs: desiredCRS,
+//  description: 'Winter_10bands',
+//  description: 'Spring_10bands',
+//  description: 'Summer_10bands',
+  description: 'Autumn_10bands',
   region: bufferedGeometry,
+  crs: desiredCRS,
   folder: 'GEE_Data',
   fileFormat: 'GeoTIFF'
-};
-
-// List image IDs
-var imageList = croppedCollection2.aggregate_array('system:index');
-
-// Convert imageList to JavaScript array
-imageList.evaluate(function(ids) {
-  // Create an empty image collection to store the merged images
-  var mergedCollection = ee.ImageCollection([]);
-
-  // Iterate & export
-  for (var i = 0; i < ids.length; i++) {
-    var imageId = ids[i];
-    var exportName = exportConfig.descriptionPrefix + imageId;
-    var image = ee.Image(croppedCollection2.filterMetadata('system:index', 'equals', imageId).first())
-      .reproject({
-        crs: exportConfig.crs,
-        scale: exportConfig.scale
-      });
-
-    // Add each image to merged collection
-    mergedCollection = mergedCollection.merge(image);
-
-    // Export option for separate files
-    Export.image.toDrive({
-      image: image,
-      description: exportName,
-      scale: exportConfig.scale,
-      crs: exportConfig.crs,
-      region: exportConfig.region,
-      folder: exportConfig.folder,
-      fileFormat: exportConfig.fileFormat
-    });
-  }
-  
-  // Merge images/data to export as single file
-  var mergedImage = mergedCollection.mosaic()
-    .reproject({
-      crs: exportConfig.crs,
-      scale: exportConfig.scale
-    });
-  // Export option for single file
-  Export.image.toDrive({
-    image: mergedImage,
-//    description: 'Winter_10bands',
-//    description: 'Spring_10bands',
-//    description: 'Summer_10bands',
-    description: 'Autumn_10bands',
-    scale: exportConfig.scale,
-    crs: exportConfig.crs,
-    region: exportConfig.region,
-    folder: exportConfig.folder,
-    fileFormat: exportConfig.fileFormat
-  });
 });
-
-///////////////////////////////////////////////////////////////////////////
-
-/// VISUALISE DATA ON THE GEE MAP ///
-var visualizationParams = { bands: ['B4', 'B3', 'B2'], min: 0, max: 3000 };
-Map.addLayer(croppedCollection1.mean(), visualizationParams, "Sentinel-2");
-Map.centerObject(bufferedGeometry, 11);
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -196,7 +137,7 @@ print("Filtered Band Names:", bandNames);
 print("Filtered Band Data Types:", bandDataTypes);
 
 // Checking an image in the cloud masked collection
-var cloudImage = maskedCollection.first();
+var cloudImage = s2CloudMasked.first();
 // Get band names and data type(s)
 var bandNames = cloudImage.bandNames();
 var bandDataTypes = cloudImage.bandTypes();
