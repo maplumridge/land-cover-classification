@@ -10,6 +10,7 @@
 //    a) Export satellite data with 4 bands (2, 3, 4 & 8) at 10 metre resolution
 //    b) Export satellite data with 10 bands (2, 3, 4, 5, 6, 7, 8, 8a, 11 & 12) at 10 metre resoltion
 
+// DATA SELECITON //
 // 1. Select Sentinel 2A data (not 1C)
 // Specify bounding box, date range, and cloud cover %
 var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
@@ -19,11 +20,11 @@ var s2 = ee.ImageCollection("COPERNICUS/S2_SR")
     [-6.1897, 36.8386],
     [-6.1897, 41.8802]
   ]))
-  .filterDate("2018-01-01", "2018-03-31")
+//  .filterDate("2018-01-01", "2018-03-31")
 //  .filterDate("2018-04-01", "2018-06-30")
 //  .filterDate("2018-07-01", "2018-09-30")
-//  .filterDate("2018-10-01", "2018-12-31")
-  
+  .filterDate("2018-10-01", "2018-12-31")
+
 // 2. Filter for Coimbra, Portugal
 // Load Portugal shapefile (which contains boundaries for each district in Portugal)
 // Note: Upload shapefile to 'Assests' first
@@ -42,8 +43,8 @@ var filteredCollection = s2
   .filterBounds(bufferedGeometry)
   .select(['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12', 'QA60', 'SCL']);
   
-/// CLOUD MASKING ///
 
+// CLOUD MASK //
 // 3. Apply a cloud mask for images with cloud-covered and cloud-shadowed pixels
 // Updated to use 'better' SCL method:
 // - See https://www.mdpi.com/2072-4292/13/4/816
@@ -59,22 +60,20 @@ function maskS2clouds(image) {
 }
 // Apply mask to image collection
 var s2CloudMasked = filteredCollection.map(maskS2clouds);
-
-// Create a MEDIAN composited image
+// Create a MEDIAN composite image
 // Median is more robust to noise and outliers
 // Changing this to .mean shows worse performance
 var medianImage = s2CloudMasked.median().clip(coimbraGeometry);
 
-// Visualise the median composited image
+// VISUALISE //
+// Visualise median composited data
 Map.centerObject(coimbraGeometry, 10);
 Map.addLayer(medianImage, {bands: ['B4', 'B3', 'B2'], min: 0, max: 3000}, 'Median RGB');
 
 
-//// EXPORT SEASONAL SATELLITE DATA ////
-
+// EXPORT SEASONAL SATELLITE DATA //
 // 4. Reproject S2 data to CRS EPSG:32629
 var desiredCRS = 'EPSG:32629';
-
 // 5 & 6: Merge and export data
 // DOWNLOAD OPTION 1: Exporting 10m bands 2, 3, 4, and 8 only
 // Average Volume: 647.5 MB
@@ -90,7 +89,7 @@ Export.image.toDrive({
 //  description: 'Winter_4bands',
 //  description: 'Spring_4bands',
 //  description: 'Summer_4bands',
-  description: 'Autumn_bands',
+  description: 'Autumn_4bands',
   region: bufferedGeometry,
   crs: desiredCRS,
   folder: 'GEE_Data',
@@ -102,7 +101,7 @@ print("Sentinel-2 Image List:", imageList);
 
 /////////////////////////////////////////////////////////////////////////////////
 
-// DOWNLOAD OPTION 2: Exporting all 20m bands, excluding 1, 9 & 10 (60m atmopsheric bands)
+// DOWNLOAD OPTION 2: Exporting all 20m bands excluding 1, 9 & 10 (atmopsheric bands)
 // Average Volume: 1.2 GB
 var exportBands2 = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8', 'B8A', 'B11', 'B12'];
 // Crop the data with selected bands
@@ -111,12 +110,12 @@ var croppedCollection2 = s2CloudMasked.select(exportBands2).map(function(image) 
 });
 // Export TIFF file to my Google drive (20GB limit)
 Export.image.toDrive({
-  image: croppedCollection1.median(),
+  image: croppedCollection2.median(),
   scale: 10,
-//  description: 'Winter_10bands',
-//  description: 'Spring_10bands',
-//  description: 'Summer_10bands',
-  description: 'Autumn_10bands',
+//  description: 'SCL_Winter_10bands',
+//  description: 'SCL_Spring_10bands',
+//  description: 'SCL_Summer_10bands',
+  description: 'SCL_Autumn_10bands',
   region: bufferedGeometry,
   crs: desiredCRS,
   folder: 'GEE_Data',
