@@ -8,73 +8,127 @@ Time:           Seconds
 To do:          Remove specific file paths from code. Merge L1 and L2 together in one file.
 """
 
+import argparse
 import rasterio
 import numpy as np
 
-# Open CORINE ground truth data (already cropped and reprojected)
-#with rasterio.open('/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/CORINE_32629_10m_Cropped.tif') as groundtruth:
-with rasterio.open('/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Braga_CORINE_Cropped_L3.tif') as groundtruth:
-    # Read as numpy array
-    array = groundtruth.read(1)
-    ## Map target classes (level 1 or level 2) to the original input classes (level 3)
-    ## Refer to https://land.copernicus.eu/user-corner/technical-library/corine-land-cover-nomenclature-guidelines/html
-    
-    ## THIS CODE WORKS ##
-    #new_to_original = {
-    #    1: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], #e.g. classes 1 to 11 from the original CORINE data will be reclassified as class 1
-    #    2: list(range(12, 23)),
-    #    3: list(range(23, 35)),
-    #    4: list(range(35, 40)),
-    #    5: list(range(40, 45))
-    #}
+parser = argparse.ArgumentParser(description="Reclassify CORINE")
+parser.add_argument("--level", type=int, choices=[1, 2, 3], help="Reclassify to level 1, 2 or 3 classes")
+parser.add_argument("--output_file", type=str, help="Output file path and name for reclassified file")
+parser.add_argument("--classes", type=str, choices=['CORINE', 'spectral'], help="Reclassify using the CORINE scheme or adapted spectral scheme")
+args = parser.parse_args()
 
+# CORINE Level 2
+if args.level == 2 and args.classes == 'CORINE':
     hybrid_classes = {
         # Urban
-        1: [1],
-        2: [2],
-        3: [3, 4, 5, 6],
-        4: [7, 8, 9],
-        5: [10, 11],
+        1: [1, 2],
+        2: [3, 4, 5, 6],
+        3: [7, 8, 9],
+        4: [10, 11],
         # Agri
-        6: [12, 13, 14],
-        7: [15, 16, 17],
-        8: [18],
-        9: [19, 20, 21, 22],
+        5: [12, 13, 14],
+        6: [15, 16, 17],
+        7: [18],
+        8: [19, 20, 21, 22],
         # Forest
-        10: [23],
-        11: [24],
-        12: [25],
-        13: [26],
-        14: [27],
-        15: [28],
-        16: [29],
-        17: [30, 31, 32, 33, 34],
+        9: [23, 24, 25],
+        10: [26, 27, 28, 29],
+        11: [30, 31, 32, 33, 34],
         # Wetlands
-        18: [35, 36],
-        19: [37, 38, 39],
+        12: [35, 36, 37, 38, 39],
         # Water bodies
-        20: [40, 41],
-        21: [42, 43, 44]
+        13: [40, 41, 42, 43, 44],
     }
-    ## Apply reclassification
-    # Create array for data with 'new' classes
+# CORINE Level 3
+elif args.level == 3 and args.classes == 'CORINE': 
+    hybrid_classes = {
+        # Urban
+        1: [1, 2],
+        2: [3, 4, 5, 6],
+        3: [7, 8, 9],
+        4: [10, 11],
+        # Agri
+        5: [12, 13, 14],
+        6: [15, 16, 17],
+        7: [18],
+        8: [19, 20, 21, 22],
+        # Forest
+        9: [23],
+        10: [24],
+        11: [25],
+        12: [26],
+        13: [27],
+        14: [28],
+        15: [29],
+        16: [30, 31, 32, 33, 34],
+        # Wetlands
+        17: [35, 36, 37, 38, 39],
+        # Water bodies
+        18: [40, 41, 42, 43, 44],
+    }
+
+### FOR SPECTRAL CLASSES
+# Level 3
+elif args.level == 3 and args.classes == 'spectral':
+    hybrid_classes = {
+        1: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        2: [10, 11],
+        3: [12, 13, 14], 
+        4: [15, 16, 17], 
+        5: [18],
+        6: [19, 20, 21, 22],
+        7: [22],
+        8: [23],
+        9: [24],
+        10: [25],
+        11: [26],
+        12: [27],
+        13: [28],
+        14: [29, 30, 31, 32, 33],
+        15: [35, 36, 37, 38, 39],
+        16: [40, 41, 42, 43, 44, 45]
+    }
+
+# Level 2
+elif args.level == 2 and args.classes == 'spectral':
+    hybrid_classes = {
+        1: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        2: [10, 11],
+        3: [12, 13, 14], 
+        4: [15, 16, 17], 
+        5: [18],
+        6: [19, 20, 21, 22],
+        7: [23, 24, 25],
+        8: [26, 27, 28, 29],
+        9: [30, 31, 32, 33, 34],
+        10: [35, 36, 37, 38, 39],
+        11: [40, 41, 42, 43, 44, 45]
+    }
+
+# Level 1
+elif args.level == 1 and args.classes == 'spectral':
+    hybrid_classes = {
+        1: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+        2: [10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34],
+        3: [35, 36, 37, 38, 39],
+        4: [40, 41, 42, 43, 44, 45]
+    }
+    
+# Open input CORINE file to reclassify
+with rasterio.open('/gws/nopw/j04/ai4er/users/map205/mres/L3_CORINE_32629_10m_Cropped.tif') as groundtruth:
+#with rasterio.open('/gws/nopw/j04/ai4er/users/map205/mres/Braga_CORINE_Cropped_L3.tif') as groundtruth:
+    array = groundtruth.read(1)
     modified_array = np.zeros_like(array, dtype=np.uint8)
-    # Assign 'new' classes
+    # Assign new classes
     for new_classes, original_classes in hybrid_classes.items():
         modified_array[np.isin(array, original_classes)] = new_classes
-
-    ## Save results
     # Load metadata of input CORINE/ground truth file
     metadata = groundtruth.profile
-    # Modify metadata to contain the new classes for each pixel
     metadata.update(count=1, dtype=rasterio.uint8)
-    ## Create & save a new .tif ground truth file containing the new classes for each pixel
-    #output_file = '/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/Braga_L1_CORINE_32629_10m_Cropped_test.tif'
-    #output_file = '/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/Hybrid_Classes_CORINE_32629_10m_Cropped.tif'
-    output_file = '/Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/Groundtruth_data/Braga_Hybrid_Classes_CORINE_32629_10m_Cropped.tif'
-
+    # Save reclassified .tif file as new file
+    output_file = args.output_file if args.output_file else "modified_classification.tif"
     with rasterio.open(output_file, 'w', **metadata) as dst:
         dst.write(modified_array, 1)
-    
-    # Confirm creation of the new ground truth file
-    print(f"Modified classification saved as {output_file}")
+
+print(f"Reclassified file saved as {output_file}")
