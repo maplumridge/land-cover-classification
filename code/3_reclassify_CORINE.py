@@ -3,7 +3,7 @@ Project:        AI4ER MRes
 Code:           Reclassify level 3 classes of the ground truth dataset (CORINE) to remapped level 1, level 2 and level 3 classes 
 Order:          After CORINE data has been cropped and reprojected in QGIS (see workflow.md)
 Time:           Seconds 
-To do:          Make file path agnostic
+To do:          Make file path agnostic. Remove hard-coded input file.
 """
 
 import argparse
