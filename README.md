@@ -27,9 +27,7 @@ This project uses two publicly available datasets:
 ```
 
 ## Workflow
-<p align="center">
-    <img src="TBC" width="100%"\>
-</p>
+![MRes_Workflow](/Users/meghanplumridge/Desktop/MRes_workflow.png)
 
 ## Usage
 To test the code and recreate the results of this project, follow the steps below: 
