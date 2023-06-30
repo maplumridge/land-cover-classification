@@ -22,7 +22,19 @@ This project uses two publicly available datasets:
 ## Code Structure
 
 ```
-|──────TBC                     <-- TBC
+|──────1_S2_data_download.js         <-- JavaScript Google Earth Engine task to select and preprocess satellite data for the region of interest
+|──────2_merge.sh                    <-- Shell script to merge satellite data together with GDAL
+|──────3_add_indices.py              <-- Python script to add spectral indices to satellite data
+|──────4_reproject.sh                <-- Shell script to reproject and resample CORINE reference data
+|──────5_reclassify_CORINE.py        <-- Python script to map land cover classes to new values
+|──────6_L1_train.py                 <-- Python script to train random forest models to perfrom level 1 class classifcation
+|──────7_L2L3_train.py               <-- Python script to train random forest models to perfrom level 2 and 3 class classifcation
+|──────8_L1_test.py                  <-- Python script to test the level 1 random forest models
+|──────9_L2L3_test.py                <-- Python script to test the level 2 and 3 random forest models
+|──────10_H_train.py                 <-- Python script to train random forest models to perfrom hierarchical classification
+|──────11_H_test.py                  <-- Python script to test hierarchical classification
+|──────12_train_jobs.sh              <-- Shell script to submit model training runs for batch processing on JASMIN
+|──────13_test_jobs.sh               <-- Shell script to submit model testing runs for batch processing on JASMIN
 
 ```
 
