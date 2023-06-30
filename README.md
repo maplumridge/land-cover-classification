@@ -39,13 +39,18 @@ This project uses two publicly available datasets:
 ```
 
 ## Workflow
-![MRes_Workflow](/Users/meghanplumridge/Desktop/MRes_workflow.png)
+<p align="center">
+    <img src="MRes_workflow.png" width="70%"\>
+</p>
+
+<p align="center">
+    <img src="MRes_model_workflow.png" width="90%"\>
+</p>
 
 ## Usage
 To test the code and recreate the results of this project, follow the steps below: 
-1. Clone this repository (for the latest version) or retrieve the archived copy from Zenodo
-2. Create and activate the conda environment using ```conda activate environment.yml```, which contains all required Python modules and versions.
-3. Follow the steps in [workflow.md](TBC) to download and preprocess the datasets and subsequently train and test the random forest models. 
+1. Clone this repository (for the latest version) or access the release for June 30th (MRes submission date)
+2. Follow the steps in workflow.md to download and preprocess the datasets and subsequently train and test the random forest models. 
 
 ## Contributors
 The contents of this repository were created by [Meghan Plumridge](https://ai4er-cdt.esc.cam.ac.uk/StaffDirectory/students-all/2022-students), AI4ER MRes Student, University of Cambridge, for a 12-week MRes project. [AI4ER](https://ai4er-cdt.esc.cam.ac.uk) is the the UKRI Centre for Doctoral Training (CDT) in the Application of Artificial Intelligence to the study of Environmental Risks at the [University of Cambridge](https://www.cam.ac.uk).
