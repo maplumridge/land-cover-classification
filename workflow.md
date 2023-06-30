@@ -8,11 +8,12 @@ The purpose of this workflow document is to facilitate reproducibility of the re
 # Prerequisites
 1. Create a JASMIN account. See [1].
 2. Create a Google Earth Engine account. See [2].
-3. Create a Weights and Biases account. See [3]
+3. Create a Weights and Biases account. See [3].
+4. Access to QGIS software. See [4].
 
 # Steps
 
-## DATA&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_Sentinel-2_
+## _Sentienl-2 data_
 
 > **_Note:_**
 Follow steps 1 to 4 if you wish to reproduce the Google Earth Engine steps. Alternatively, you can download the ready-made data from [my Google Drive](https://drive.google.com/drive/u/0/folders/1_iOAiCIQxiLXGo_sndqt5mg8I8ObrhCm) and jump ahead to step 5.
@@ -53,125 +54,115 @@ In my case, the code used was:
 scp -r /Users/meghanplumridge/Library/CloudStorage/OneDrive-UniversityofCambridge/MRes_Data/GEE map205@login1.jasmin.ac.uk:/home/users/map205/MRes_Data/
 ```
 
-<b>Note: </b> This takes about 15 minutes. The files are transferred to the home directory on the JASMIN login node and synchronised to the compute nodes. Home directories on JASMIN have a 100 GB storage limit. 
+<b>Note: </b> This takes about 15 minutes. The files are transferred to the home directory on the JASMIN login node and synchronised to the compute nodes. Home directories on JASMIN have a 100 GB storage limit. To check usage:
+```
+pdu -sh </path/to/your/home/directory>
+```
+
+### Step 6: Merge 10 band satellite data
+The data downloaded from Google Earth Engine will be output as two separate files (this is because the Coimbra region happens to exist at the boundary between two satellite paths). To merge the files together for each season, use the merge.sh script in this repository
+```
+./merge.sh
+```
+### Step 7: Add spectral indices
+Each sesaonal 10 band satellite image can now be updated to include additional spectral indices. Indices NDVI, NDBI and GCVI were used in this project, but the code can easily be adapted to compute other indices. Refer to Refer to [7](https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel-2/bands/) for details of Sentinel-2 spectral bands. Use the script 2_add_indicies.py. An example is shown below.
+
+```
+python 2_add_indices.py --input_file SCL_Winter_10bands.tif --output_file SCL_Winter_10bands_3indices.tif
+```
 
 ------------------------------------------------------------------------------------------------------------------------
 
-# MODIFY BELOW
+## _CORINE reference data_
 
-## DATA &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_BigEarthNet_
-### Step 1: Download the data from BigEarthNet
-Download the file "BigEarthNet-S2" from the following URL https://bigearth.net/ 
-The dataset is 66GB. 
+### Step 1: Download CORINE data
+Download European-wide data for 2018 (CLC2018) from the [Copernicus Land Monitoring Service](https://land.copernicus.eu/pan-european/corine-land-cover) [8]. <b>Note: </b> Ensure that you download the data in raster format.
 
-### Step 2: Copy the tar file to JASMIN
-Note: The files are transferred to my home directory on the login node, but this is synchronised to the compute nodes. However, I will NOT unzip the file in my home directory because I only have a 100GB allowance.
-```
-scp /Users/meghanplumridge/Downloads/BigEarthNet-S2-v1.0.tar.gz map205@login1.jasmin.ac.uk://home/users/map205/
-```
+### Step 2: Reproject and resample 
+The reference data needs to be reprojected to the same coordinate reference system as the satellite data (CRS 32629). The pixel resolution should also be upsampled to 10 metres to match the resolution of the satellite data.
 
-### Step 3: Login to JASMIN and unzip the file
-Note: I will unzip the data in the AI4ER group workspace on JASMIN because my personal workspace has a limit of 100 GB. See [5]. This takes > 24 hours to run.
+Run the script <b> reproject.sh </b>
+```
+./reproject.sh
+```
+This will output a new .tif file at the target resoltuion and projection. 
 
-First, create a directory in the AI4ER group workspace:
-```
-cd /gws/nopw/j04/ai4er/users/
-mkdir map205
-```
-Then unzip the files and output them to this directory:
-```
-cd /home/users/map205
-nohup tar -zxvf BigEarthNet-S2-v1.0.tar.gz -C /gws/nopw/j04/ai4er/users/BigEarthNet-v1.0/ --skip-old-files > /home/myusername/logs/tar_output.log 2>&1 &
-```
+### Step 3: Crop to region of interest
+Load the data in QGIS along with one of the satellite images.
+Raster
+--> Extraction 
+    --> Clip raster by extent 
+        --> Clipping extent 
+            --> Calcuate from layer (select the satellite data)
 
-To check the status of the task:
-```
-ps -ef | grep map205
-```
+These steps will crop the CORINE data to the bounds of the satellite data. Now the data are aligned and can be used for modelling.
 
-### Step 4: Merge the files together to visualise in QGIS
-Note: to check the number of files you can have open at once, I ran the following command in my personal workspace (/home/users/map205) and the group workspace (/gws/nopw/j04/ai4er/users/map205)
-```
-ulimit -a
-```
-Which shows that I can have >4000 files open in my home workspace:
-```
-open files                      (-n) 4096
-```
-But only 1000 files open in the group workspace
-```
-open files                      (-n) 1024
-```
+### Step 4: Reclassify to level 1, 2 and 3 class nomenclature
+Finally, land cover values in the CORINE dataset need to be mapped to the classes of interest. See the [CORINE website](https://land.copernicus.eu/user-corner/technical-library/corine-land-cover-nomenclature-guidelines/html) for a list of all 44 classes and their hierarchy.
 
-I decided to run the merge_files.py script in my home directory (/home/users/map205) since I can process more files at once here.
+Run the script <b> reclassify_CORINE.py </b>, which will output a new .tif file with the re-mapped classes. An example is shown below.
 
 ```
-conda activate sea-ice-classification
-nohup python merge_files.py &
+python 3_reclassify_CORINE.py --level 2 --output_file FINAL_L2_SPECTRAL_Braga.tif --classes spectral
 ```
-
-### Step 5: Copy the files to my computer to visualise in QGIS
-See instructions at [6]
-
-```
-scp -r "map205@login1.jasmin.ac.uk:/home/users/map205/mres/*" /Users/meghanplumridge/Desktop/merged_files/
-```
-Note: I needed to add parantheses around the jasmin login path otherwise it failed with error zsh: no matches found: map205@login1.jasmin.ac.uk:/home/users/map205/mres/*
-
-<img width="975" alt="Screenshot 2023-04-24 at 15 14 38" src="https://user-images.githubusercontent.com/114443493/234087070-f1fb2929-ec37-4dde-95e4-c7230b337d62.png">
-
-There are 98 'global_merged' tif files covering Portugal (and wider). These each contain 1000 smaller raw .tif files, so altogether there are 98,000 files to review.
-
-### Step 6: Copy the 98,000 directories containing data covering Portugal to a new directory
-
-```
-cd /gws/nopw/j04/ai4er/users/map205/mres/
-mkdir portugal_data
-```
-
-Use the script portugal_data.py, which copies the directories to /gws/nopw/j04/ai4er/users/map205/mres/portugal_data
-
-The total volume of data is X GB.
-
-
-### Step 7: Identify the files the extend beyond Portugal and discard them
-
-TBC
-
-### Step 8: Move the .tif files of 10m x 10m resolution, and their corresponding .json file to a new directory
-
-Use the script 10m_portugal_data.py, which moves the files with 10 metre spatial resolution to /gws/nopw/j04/ai4er/users/map205/mres/10m_portugal_data
-
-```
-cd /gws/nopw/j04/ai4er/users/map205/mres/
-mkdir 10m_portugal_data
-```
-
-The total number of files is X
-The total volume is Y
-
-### Step 9: Copy the .tif and .json files to 
-
 
 ------------------------------------------------------------------------------------------------------------------------
 
-## MODELLING&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_Random Forest_
+## _Model training_
+The <b>script train_models.sh</b> file contains command examples, complete with command-line arguments, for a variety of model training options.
+### Options
+Choose the desired classification level
+- CORINE Level 1
+- CORINE Level 2
+- CORINE Level 3
+- spectral Level 1
+- spectral Level 2
+- spectral Level 3 
 
-## MODELLING&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_CNN_
+Choose which bands to sample from the satellite imagery
+- 4
+- 10
+- 13 (10 + 3 indices)
 
-## RESULTS&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_Data Availability_
+Choose which cloud management mechanism you wish to use
+- SCL - cloud-masked satellite data
+- NoCloud - low cloud cover satellite data
+
+To train models in parallel, execute the following command on JASMIN:
+```
+sbatch train_models.sh
+``` 
+
+<b>IMPORTANT</b> you must be connected to an interactive node (e.g sci6), not a login node, to submit jobs to the Lotus batch claster. To test performance on different queues, modify memory or CPU requirements, refer to the [JASMIN documentation](https://help.jasmin.ac.uk/category/4889-slurm)
+
+------------------------------------------------------------------------------------------------------------------------
+
+## _Model testing_
+After completing model training and saving the best models, the test models can also be run in parallel on the Lotus cluster. The file <b>test_models.sh</b> contains command examples, complete with command-line arguments, for a variety of model testing options.
+```
+sbatch test_models.sh
+```
 
 ## REFERENCES
 
-[1] Create a JASMIN account | JASMIN Accounts Portal. Available at: https://accounts.jasmin.ac.uk/application/new/ (Accessed: March 16, 2023). 
+[1] https://accounts.jasmin.ac.uk/application/new/
 
 [2] https://code.earthengine.google.com/register
 
 [3] https://wandb.ai/site
 
-[4] https://data.metabolismofcities.org/dashboards/lisbon/maps/35879/
+[4] https://qgis.org/en/site/
 
-[5] https://help.jasmin.ac.uk/article/176-storage
+[5] https://data.metabolismofcities.org/dashboards/lisbon/maps/35879/
 
-[6] https://help.jasmin.ac.uk/article/3810-data-transfer-tools-rsync-scp-sftp 
+[6] https://help.jasmin.ac.uk/article/176-storage
 
+[7] https://help.jasmin.ac.uk/article/3810-data-transfer-tools-rsync-scp-sftp 
+
+[8] https://custom-scripts.sentinel-hub.com/custom-scripts/sentinel-2/bands/
+
+[9] https://land.copernicus.eu/pan-european/corine-land-cover
+
+[10] https://land.copernicus.eu/user-corner/technical-library/corine-land-cover-nomenclature-guidelines/html
+
+[11] https://help.jasmin.ac.uk/category/4889-slurm
